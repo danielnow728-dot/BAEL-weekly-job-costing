@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAEL Job Costing AI</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Feather Icons for lightweight iconography -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Background decorative elements -->
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        
+        <header class="app-header">
+            <div class="logo-container">
+                <i data-feather="briefcase" class="logo-icon"></i>
+                <h1>BAEL Job Costing</h1>
+            </div>
+            <p class="subtitle">Automated weekly payroll data processing and cost analysis</p>
+        </header>
+
+        <main class="app-main">
+            <!-- Upload Card -->
+            <div class="glass-card upload-section" id="upload-card">
+                <div class="drop-zone" id="drop-zone">
+                    <input type="file" id="file-input" accept=".xlsx, .xls" hidden>
+                    <div class="drop-content" id="drop-content">
+                        <i data-feather="upload-cloud" class="upload-icon"></i>
+                        <h3>Upload Payroll Report</h3>
+                        <p>Drag and drop your Excel file here</p>
+                        <span class="divider">or</span>
+                        <button class="btn btn-primary" id="browse-btn">Browse Files</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="glass-card processing-section hidden" id="processing-section">
+                <div class="loader-container">
+                    <div class="spinner"></div>
+                    <h3>Processing Data...</h3>
+                    <p>Generating BAEL costs, billing rates, and gross profit analysis</p>
+                </div>
+            </div>
+
+            <!-- Success State -->
+            <div class="glass-card success-section hidden" id="success-section">
+                <div class="success-content">
+                    <div class="icon-circle">
+                        <i data-feather="check" class="success-icon"></i>
+                    </div>
+                    <h3>Report Generated Successfully</h3>
+                    <p class="filename-display" id="processed-filename">BAEL_Weekly_Costs.xlsx</p>
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="download-btn">
+                            <i data-feather="download"></i> Download Report
+                        </button>
+                        <button class="btn btn-secondary" id="reset-btn">Process Another File</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Error State -->
+            <div class="glass-card error-section hidden" id="error-section">
+                 <div class="error-content">
+                    <div class="icon-circle error">
+                        <i data-feather="alert-circle" class="error-icon"></i>
+                    </div>
+                    <h3>Processing Error</h3>
+                    <p id="error-message">Something went wrong while processing your file.</p>
+                    <button class="btn btn-secondary" id="error-reset-btn">Try Again</button>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+             <p>Powered by Advanced Analytics Engine</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Initialize feather icons
+        feather.replace();
+    </script>
+</body>
+</html>
