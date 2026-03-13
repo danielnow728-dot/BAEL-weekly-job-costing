@@ -59,6 +59,6 @@ async def process_report(file: UploadFile = File(...)):
 
 # Mount the static frontend directory
 import os
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
