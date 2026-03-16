@@ -250,3 +250,130 @@ def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float]) -> io.Byte
     wb.save(virtual_workbook)
     virtual_workbook.seek(0)
     return virtual_workbook
+
+def update_running_master(agg: pd.DataFrame, week_name: str, master_filepath: str):
+    """
+    Updates or creates a master running table tracking Total Billing and Margin 
+    for each job across different weeks.
+    
+    Expected output structure matches the user's screenshot:
+    Row 1 (Headers level 1): [Blank] | Week [name] | Week [name] | ...
+    Row 2 (Headers level 2): [Blank] | Total Billing | Margin | Total Billing | Margin | ...
+    Row 3+: Job Name | $val | %val | $val | %val | ...
+    """
+    import os
+    from openpyxl import load_workbook
+    
+    # 1. Aggregate the new data per job
+    # We need Total Billing and Gross Margin % per Job Name for this specific week.
+    job_summary = {}
+    for job, g in agg.groupby("Job Name"):
+        total_bill = float(g["Total Billing"].sum(skipna=True))
+        gp = float(g["Gross Profit $"].sum(skipna=True))
+        margin = (gp / total_bill) if total_bill != 0 else np.nan
+        job_summary[job] = {"billing": total_bill, "margin": margin}
+        
+    # 2. Open or Create Master Workbook
+    if os.path.exists(master_filepath):
+        wb = load_workbook(master_filepath)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Master Tracker"
+        # Setup initial column A
+        ws.column_dimensions['A'].width = 45
+        
+    # Find the next available column block (we need 2 columns per week)
+    # Row 1 has the "Week ***" headers. Let's find the max column in row 1.
+    max_col = ws.max_column
+    if max_col == 1 and ws.cell(row=1, column=1).value is None:
+        start_col = 2 # First time adding a week
+    else:
+        start_col = max_col + 1
+        
+    # Styles for Master Sheet
+    header_fill = PatternFill("solid", fgColor="E2EFDA") # Light green header
+    bold_font = Font(bold=True)
+    thin_border = Border(
+        left=Side(style="thin", color="BFBFBF"), 
+        right=Side(style="thin", color="BFBFBF"), 
+        top=Side(style="thin", color="BFBFBF"), 
+        bottom=Side(style="thin", color="BFBFBF")
+    )
+    
+    # 3. Add Headers for the new week
+    ws.merge_cells(start_row=1, start_column=start_col, end_row=1, end_column=start_col+1)
+    week_header = ws.cell(row=1, column=start_col, value=week_name)
+    week_header.font = bold_font
+    week_header.alignment = Alignment(horizontal="center")
+    
+    bill_header = ws.cell(row=2, column=start_col, value="Total Billing")
+    margin_header = ws.cell(row=2, column=start_col+1, value="Margin")
+    
+    for cell in [week_header, bill_header, margin_header]:
+        cell.fill = header_fill
+        cell.border = thin_border
+    
+    # Adjust column widths
+    ws.column_dimensions[get_column_letter(start_col)].width = 15
+    ws.column_dimensions[get_column_letter(start_col+1)].width = 12
+    
+    # 4. Read existing jobs and their row numbers
+    existing_jobs = {}
+    # We assume jobs start at row 3, column 1
+    max_row = ws.max_row
+    for r in range(3, max_row + 1):
+        job_name = ws.cell(row=r, column=1).value
+        if job_name:
+            existing_jobs[job_name] = r
+            
+    # 5. Insert data
+    next_new_row = max_row + 1 if max_row >= 3 else 3
+    
+    currency_fmt = "$#,##0.00"
+    pct_fmt = "0.00%"
+    
+    for job, data in job_summary.items():
+        if job in existing_jobs:
+            target_row = existing_jobs[job]
+        else:
+            # New job found, add it to the bottom
+            target_row = next_new_row
+            job_cell = ws.cell(row=target_row, column=1, value=job)
+            job_cell.border = thin_border
+            existing_jobs[job] = target_row
+            next_new_row += 1
+            
+        # Write values
+        bill_cell = ws.cell(row=target_row, column=start_col, value=data["billing"] if not np.isnan(data["billing"]) else None)
+        margin_cell = ws.cell(row=target_row, column=start_col+1, value=data["margin"] if not np.isnan(data["margin"]) else None)
+        
+        bill_cell.number_format = currency_fmt
+        margin_cell.number_format = pct_fmt
+        
+    # Save directly to the persistent disk path
+    wb.save(master_filepath)
+
+def check_if_week_exists(week_name: str, master_filepath: str) -> bool:
+    """
+    Checks if the given week_name is already present in the header row of the Master Tracker.
+    """
+    import os
+    from openpyxl import load_workbook
+    
+    if not os.path.exists(master_filepath):
+        return False
+        
+    try:
+        wb = load_workbook(master_filepath, read_only=True)
+        ws = wb.active
+        # Check row 1 for the week_name
+        for col in range(2, ws.max_column + 1):
+            cell_val = ws.cell(row=1, column=col).value
+            if cell_val and str(cell_val).strip() == str(week_name).strip():
+                return True
+    except Exception:
+        pass
+        
+    return False
