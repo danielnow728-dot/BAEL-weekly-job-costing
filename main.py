@@ -1,14 +1,21 @@
+import os
 import io
 import traceback
+from datetime import datetime
 import pandas as pd
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from job_cost_report import compute_report, write_grouped_excel
+from job_cost_report import compute_report, write_grouped_excel, update_running_master, check_if_week_exists
 
 app = FastAPI(title="BAEL Job Cost Report API")
+
+# Setup Persistent Save Directory
+# Render maps disks to a folder, e.g. /var/data
+SAVE_DIR = os.environ.get("RENDER_DISK_PATH", "saved_reports")
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 # Allow CORS for local development (if frontend is served separately)
 app.add_middleware(
@@ -20,14 +27,29 @@ app.add_middleware(
 )
 
 @app.post("/api/process")
-async def process_report(file: UploadFile = File(...)):
-    if not file.filename.endswith(('.xlsx', '.xls')):
-         raise HTTPException(status_code=400, detail="Invalid file type. Please upload an Excel (.xlsx or .xls) file.")
-    
+async def process_file(file: UploadFile = File(...)):
     try:
-        # Read the uploaded Excel file into pandas
+        # Read the uploaded Excel file
         contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents), sheet_name=0)
+        xl = pd.ExcelFile(io.BytesIO(contents))
+        
+        # Use the first sheet name as the week identifier (e.g., the date)
+        week_name = str(xl.sheet_names[0]).strip()
+        
+        # Check against the Master Tracker to prevent duplicate uploads
+        master_filepath = os.path.join(SAVE_DIR, "Master_Running_Tracker.xlsx")
+        if check_if_week_exists(week_name, master_filepath):
+            raise HTTPException(status_code=400, detail=f"A report for week '{week_name}' has already been processed and saved.")
+            
+        # Save the original raw file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_original_filename = file.filename.replace(" ", "_").replace("..", "")
+        raw_filename = f"raw_{timestamp}_{safe_original_filename}"
+        raw_filepath = os.path.join(SAVE_DIR, raw_filename)
+        with open(raw_filepath, "wb") as f:
+            f.write(contents)
+        
+        df = xl.parse(0)
         
         # Validate required columns
         required = {"All Jobs", "Employee Name", "Reg", "OT", "Reg.1"}
@@ -35,11 +57,22 @@ async def process_report(file: UploadFile = File(...)):
         if missing:
             raise ValueError(f"Missing required columns in input: {sorted(missing)}")
             
-        # Run the business logic
+        # Run the core business logic
         agg, job_avg = compute_report(df)
         
-        # Generate the formatted Excel workbook in memory
+        # Generate the formatted weekly Excel workbook in memory
         output_buffer = write_grouped_excel(agg, job_avg)
+        
+        # Save a persistent copy locally or to the Render Disk
+        safe_filename = f"{week_name.replace(' ', '_')}_{file.filename.replace(' ', '_')}"
+        saved_filename = f"processed_{timestamp}_{safe_filename}"
+        saved_filepath = os.path.join(SAVE_DIR, saved_filename)
+        
+        with open(saved_filepath, "wb") as f:
+            f.write(output_buffer.getvalue())
+            
+        # Update the Running Master Table
+        update_running_master(agg, week_name, master_filepath)
         
         # Return the file as a StreamingResponse so the browser downloads it
         headers = {
@@ -57,8 +90,52 @@ async def process_report(file: UploadFile = File(...)):
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"An error occurred while processing the file: {str(e)}")
 
+@app.get("/api/history")
+def get_history():
+    files = []
+    if os.path.exists(SAVE_DIR):
+        for f in os.listdir(SAVE_DIR):
+            if f.endswith('.xlsx') or f.endswith('.xls'):
+                if f == "Master_Running_Tracker.xlsx":
+                    continue
+                    
+                filepath = os.path.join(SAVE_DIR, f)
+                stat = os.stat(filepath)
+                
+                file_type = "processed"
+                if f.startswith("raw_"):
+                    file_type = "raw"
+                elif f.startswith("processed_"):
+                    file_type = "processed"
+                    
+                files.append({
+                    "name": f,
+                    "date": datetime.fromtimestamp(stat.st_mtime).isoformat() + "Z",
+                    "size": stat.st_size,
+                    "type": file_type
+                })
+    # Sort by date descending
+    files.sort(key=lambda x: x["date"], reverse=True)
+    return {"files": files}
+
+@app.get("/api/history/{filename}")
+def download_history_file(filename: str):
+    # Security check to prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+        
+    filepath = os.path.join(SAVE_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(
+        filepath, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename
+    )
+
 # Mount the static frontend directory
 import os
-frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
