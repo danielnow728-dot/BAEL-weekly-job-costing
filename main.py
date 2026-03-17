@@ -152,6 +152,18 @@ def delete_history_file(filename: str):
 
 # Mount the static frontend directory
 import os
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
-if os.path.exists(frontend_dir):
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+
+# Try to find exactly where the user uploaded index.html
+possible_dirs = [
+    os.path.join(parent_dir, "frontend"),
+    os.path.join(current_dir, "frontend"),
+    current_dir, # If uploaded directly alongside main.py
+    parent_dir   # If main.py is in backend/ but index.html is in root/
+]
+
+for d in possible_dirs:
+    if os.path.exists(os.path.join(d, "index.html")):
+        app.mount("/", StaticFiles(directory=d, html=True), name="frontend")
+        break
