@@ -11,17 +11,21 @@ def compute_report(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
     df = df[df["All Jobs"].astype(str).str.contains("BAEL", case=False, na=False)].copy()
 
     # --- numeric coercions
-    for c in ["Reg", "OT", "Reg.1"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
+    # --- numeric coercions
+    for c in ["Reg", "OT", "Reg.1", "PerDiem", "Travel"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        else:
+            df[c] = 0.0
 
-    # --- remove non-hour lines (travel/per diem/etc.)
-    df = df[(df["Reg"].fillna(0) > 0) | (df["OT"].fillna(0) > 0)].copy()
+    # --- remove non-data lines (keep if hour, perdiem, or travel)
+    df = df[(df["Reg"].fillna(0) > 0) | (df["OT"].fillna(0) > 0) | (df["PerDiem"].fillna(0) > 0) | (df["Travel"].fillna(0) > 0)].copy()
     df["Job Name"] = df["All Jobs"].astype(str)
 
     # --- aggregate duplicates per employee per job
     agg = (
         df.groupby(["Job Name", "Employee Name"], as_index=False)
-          .agg({"Reg": "sum", "OT": "sum", "Reg.1": "sum"})
+          .agg({"Reg": "sum", "OT": "sum", "Reg.1": "sum", "PerDiem": "sum", "Travel": "sum"})
     )
 
     # --- cost calculations
@@ -57,6 +61,7 @@ def compute_report(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
     agg.loc[agg["Total Billing"].isna() | agg["Total Loaded Cost"].isna(), "Gross Profit $"] = np.nan
 
     # --- weighted average base wage per job (base already excludes OT premium)
+    # --- weighted average base wage per job (base already excludes OT premium)
     agg["Total Hours"] = agg["Reg"].fillna(0) + agg["OT"].fillna(0)
     job_avg = {}
     for job, g in agg.groupby("Job Name"):
@@ -66,12 +71,22 @@ def compute_report(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
         else:
             job_avg[job] = (g["Regular Hourly Rate"] * g["Total Hours"]).sum(skipna=True) / denom
 
+    # Separate out PerDiem and Travel into job-level summaries
+    # We remove them from individual rows to prevent double-counting
+    job_expenses = (
+        agg.groupby("Job Name", as_index=False)
+           .agg({"PerDiem": "sum", "Travel": "sum"})
+    )
+    
+    # Drop them from the employee rows so we don't accidentally print them on every employee line
+    agg = agg.drop(columns=["PerDiem", "Travel"])
+    
     # output sorting
     agg = agg.sort_values(["Job Name", "Employee Name"]).reset_index(drop=True)
-    return agg, job_avg
+    return agg, job_avg, job_expenses
 
 
-def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float]) -> io.BytesIO:
+def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float], job_expenses: pd.DataFrame) -> io.BytesIO:
     wb = Workbook()
     ws = wb.active
     ws.title = "BAEL Weekly Costs"
@@ -201,6 +216,33 @@ def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float]) -> io.Byte
                 cell.alignment = Alignment(horizontal="left" if c == 1 else "right", vertical="center")
             row += 1
 
+        # Retrieve Job Expenses
+        job_expense_row = job_expenses[job_expenses["Job Name"] == job]
+        per_diem = float(job_expense_row["PerDiem"].iloc[0]) if not job_expense_row.empty else 0.0
+        travel = float(job_expense_row["Travel"].iloc[0]) if not job_expense_row.empty else 0.0
+        
+        # Add PerDiem Row if > 0
+        if per_diem > 0:
+            ws.cell(row=row, column=1, value="PerDiem").font = bold_font
+            perdiem_cost_cell = ws.cell(row=row, column=10, value=per_diem) # Total Loaded Cost
+            perdiem_bill_cell = ws.cell(row=row, column=13, value=per_diem) # Total Billing
+            perdiem_cost_cell.number_format = currency
+            perdiem_bill_cell.number_format = currency
+            for c in range(1, len(cols) + 1):
+                ws.cell(row=row, column=c).border = thin_border
+            row += 1
+            
+        # Add Travel Row if > 0
+        if travel > 0:
+            ws.cell(row=row, column=1, value="Travel").font = bold_font
+            travel_cost_cell = ws.cell(row=row, column=10, value=travel) # Total Loaded Cost
+            travel_bill_cell = ws.cell(row=row, column=13, value=travel) # Total Billing
+            travel_cost_cell.number_format = currency
+            travel_bill_cell.number_format = currency
+            for c in range(1, len(cols) + 1):
+                ws.cell(row=row, column=c).border = thin_border
+            row += 1
+
         # JOB TOTAL row (no hourly rate totals)
         ws.cell(row=row, column=1, value="JOB TOTAL").font = bold_font
 
@@ -208,13 +250,17 @@ def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float]) -> io.Byte
         ot_hours = float(g["OT"].sum())
         loaded_reg = float(g["Loaded REG Cost"].sum(skipna=True))
         loaded_ot = float(g["Loaded OT Cost"].sum(skipna=True))
-        total_cost = float(g["Total Loaded Cost"].sum(skipna=True))
-
+        base_total_cost = float(g["Total Loaded Cost"].sum(skipna=True))
+        
         bill_reg = float(g["Regular Billing"].sum(skipna=True))
         bill_ot = float(g["Overtime Billing"].sum(skipna=True))
-        total_bill = float(g["Total Billing"].sum(skipna=True))
+        base_total_bill = float(g["Total Billing"].sum(skipna=True))
+        
+        # Incorporate pass-throughs into the aggregate totals
+        total_cost = base_total_cost + per_diem + travel
+        total_bill = base_total_bill + per_diem + travel
 
-        gp = float(g["Gross Profit $"].sum(skipna=True))
+        gp = total_bill - total_cost
         gm = (gp / total_bill) if total_bill != 0 else np.nan
 
         totals_map = {
@@ -243,15 +289,13 @@ def write_grouped_excel(agg: pd.DataFrame, job_avg: dict[str, float]) -> io.Byte
 
         row += 2
 
-    ws.freeze_panes = "A6"
-    
     # Save to a virtual file (io.BytesIO) to be returned directly by FastAPI
     virtual_workbook = io.BytesIO()
     wb.save(virtual_workbook)
     virtual_workbook.seek(0)
     return virtual_workbook
 
-def update_running_master(agg: pd.DataFrame, week_name: str, master_filepath: str):
+def update_running_master(agg: pd.DataFrame, job_expenses: pd.DataFrame, week_name: str, master_filepath: str):
     """
     Updates or creates a master running table tracking Total Billing and Margin 
     for each job across different weeks.
@@ -268,8 +312,20 @@ def update_running_master(agg: pd.DataFrame, week_name: str, master_filepath: st
     # We need Total Billing and Gross Margin % per Job Name for this specific week.
     job_summary = {}
     for job, g in agg.groupby("Job Name"):
-        total_bill = float(g["Total Billing"].sum(skipna=True))
-        gp = float(g["Gross Profit $"].sum(skipna=True))
+        # Base billing & cost without expenses
+        base_bill = float(g["Total Billing"].sum(skipna=True))
+        base_cost = float(g["Total Loaded Cost"].sum(skipna=True))
+        
+        # Pull expenses for this job
+        job_expense_row = job_expenses[job_expenses["Job Name"] == job]
+        per_diem = float(job_expense_row["PerDiem"].iloc[0]) if not job_expense_row.empty else 0.0
+        travel = float(job_expense_row["Travel"].iloc[0]) if not job_expense_row.empty else 0.0
+        
+        # Add pass-throughs
+        total_bill = base_bill + per_diem + travel
+        total_cost = base_cost + per_diem + travel
+        
+        gp = total_bill - total_cost
         margin = (gp / total_bill) if total_bill != 0 else np.nan
         job_summary[job] = {"billing": total_bill, "margin": margin}
         

@@ -58,10 +58,10 @@ async def process_file(file: UploadFile = File(...)):
             raise ValueError(f"Missing required columns in input: {sorted(missing)}")
             
         # Run the core business logic
-        agg, job_avg = compute_report(df)
+        agg, job_avg, job_expenses = compute_report(df)
         
         # Generate the formatted weekly Excel workbook in memory
-        output_buffer = write_grouped_excel(agg, job_avg)
+        output_buffer = write_grouped_excel(agg, job_avg, job_expenses)
         
         # Save a persistent copy locally or to the Render Disk
         safe_filename = f"{week_name.replace(' ', '_')}_{file.filename.replace(' ', '_')}"
@@ -72,7 +72,7 @@ async def process_file(file: UploadFile = File(...)):
             f.write(output_buffer.getvalue())
             
         # Update the Running Master Table
-        update_running_master(agg, week_name, master_filepath)
+        update_running_master(agg, job_expenses, week_name, master_filepath)
         
         # Return the file as a StreamingResponse so the browser downloads it
         headers = {
@@ -133,6 +133,22 @@ def download_history_file(filename: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename
     )
+
+@app.delete("/api/history/{filename}")
+def delete_history_file(filename: str):
+    # Security check to prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+        
+    filepath = os.path.join(SAVE_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    try:
+        os.remove(filepath)
+        return {"status": "success", "message": f"{filename} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 # Mount the static frontend directory
 import os
