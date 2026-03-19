@@ -1,17 +1,17 @@
 :root {
     /* Color Palette */
-    --clr-bg: #0f172a;
-    --clr-surface: rgba(30, 41, 59, 0.7);
-    --clr-surface-hover: rgba(51, 65, 85, 0.8);
-    --clr-border: rgba(255, 255, 255, 0.1);
+    --clr-bg: #f8fafc;
+    --clr-surface: #ffffff;
+    --clr-surface-hover: #f1f5f9;
+    --clr-border: #e2e8f0;
     
-    --clr-primary: #3b82f6;
-    --clr-primary-hover: #2563eb;
-    --clr-secondary: rgba(255, 255, 255, 0.05);
-    --clr-secondary-hover: rgba(255, 255, 255, 0.1);
+    --clr-primary: #004987;
+    --clr-primary-hover: #003366;
+    --clr-secondary: #f1f5f9;
+    --clr-secondary-hover: #e2e8f0;
     
-    --clr-text-main: #f8fafc;
-    --clr-text-muted: #94a3b8;
+    --clr-text-main: #0f172a;
+    --clr-text-muted: #64748b;
     
     --clr-success: #10b981;
     --clr-error: #ef4444;
@@ -22,7 +22,7 @@
     /* Shadows & Effects */
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.3);
+    --shadow-glow: 0 4px 14px rgba(0, 73, 135, 0.25);
     
     /* Transitions */
     --transition-fast: 0.15s ease;
@@ -47,40 +47,7 @@ body {
     position: relative;
 }
 
-/* Background Blobs for Visual Interest */
-.blob {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    z-index: -1;
-    opacity: 0.4;
-    animation: float 20s infinite ease-in-out;
-}
-
-.blob-1 {
-    top: -10%;
-    left: 10%;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(59,130,246,0.8) 0%, rgba(99,102,241,0) 70%);
-    animation-delay: 0s;
-}
-
-.blob-2 {
-    bottom: -10%;
-    right: 10%;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(16,185,129,0.5) 0%, rgba(52,211,153,0) 70%);
-    animation-delay: -10s;
-}
-
-@keyframes float {
-    0% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
-    100% { transform: translate(0, 0) scale(1); }
-}
+/* Background Blobs for Visual Interest (Removed for CD Aesthetic) */
 
 .app-container {
     width: 100%;
@@ -99,16 +66,10 @@ body {
 }
 
 .logo-container {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
     margin-bottom: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--clr-border);
-    border-radius: 100px;
-    backdrop-filter: blur(10px);
 }
 
 .logo-icon {
@@ -121,9 +82,7 @@ body {
     font-size: 1.75rem;
     font-weight: 700;
     letter-spacing: -0.025em;
-    background: linear-gradient(to right, #fff, #94a3b8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--clr-primary);
 }
 
 .subtitle {
@@ -140,8 +99,6 @@ body {
 /* Glass Cards */
 .glass-card {
     background: var(--clr-surface);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--clr-border);
     border-radius: 24px;
     padding: 3rem;
@@ -207,13 +164,13 @@ body {
 
 /* Upload Section */
 .drop-zone {
-    border: 2px dashed rgba(148, 163, 184, 0.3);
-    border-radius: 16px;
+    border: 2px dashed var(--clr-border);
+    border-radius: 12px;
     padding: 4rem 2rem;
     text-align: center;
     transition: all var(--transition-normal);
     cursor: pointer;
-    background: rgba(15, 23, 42, 0.3);
+    background: var(--clr-secondary);
 }
 
 .drop-zone:hover, .drop-zone.drag-active {
@@ -367,7 +324,7 @@ body {
 }
 
 .filename-display {
-    background: rgba(0,0,0,0.2);
+    background: var(--clr-secondary);
     padding: 0.75rem 1.5rem;
     border-radius: 8px;
     font-family: monospace;

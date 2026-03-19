@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentBlobUrl && currentOriginalFilename) {
             const a = document.createElement('a');
             a.href = currentBlobUrl;
-            a.download = `BAEL_Costs_${currentOriginalFilename}`;
+            a.download = `Basin_Electric_Costs_${currentOriginalFilename}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
