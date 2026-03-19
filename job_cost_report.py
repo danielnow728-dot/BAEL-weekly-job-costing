@@ -12,7 +12,7 @@ def compute_report(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
 
     # --- numeric coercions
     # --- numeric coercions
-    for c in ["Reg", "OT", "Reg.1", "PerDiem", "Travel"]:
+    for c in ["Reg", "OT", "Reg.1", "OT.1", "PerDiem", "Travel"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
         else:
@@ -25,11 +25,15 @@ def compute_report(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
     # --- aggregate duplicates per employee per job
     agg = (
         df.groupby(["Job Name", "Employee Name"], as_index=False)
-          .agg({"Reg": "sum", "OT": "sum", "Reg.1": "sum", "PerDiem": "sum", "Travel": "sum"})
+          .agg({"Reg": "sum", "OT": "sum", "Reg.1": "sum", "OT.1": "sum", "PerDiem": "sum", "Travel": "sum"})
     )
 
     # --- cost calculations
     agg["Regular Hourly Rate"] = agg["Reg.1"] / agg["Reg"].replace({0: np.nan})
+    if "OT.1" in agg.columns:
+        ot_hourly_base = (agg["OT.1"] / agg["OT"].replace({0: np.nan})) / 1.5
+        agg["Regular Hourly Rate"] = agg["Regular Hourly Rate"].fillna(ot_hourly_base)
+
     agg["Overtime Rate"] = agg["Regular Hourly Rate"] * 1.5
     agg["Loaded Regular Rate"] = agg["Regular Hourly Rate"] * 1.24
     agg["Loaded Overtime Rate"] = agg["Overtime Rate"] * 1.24
@@ -341,12 +345,21 @@ def update_running_master(agg: pd.DataFrame, job_expenses: pd.DataFrame, week_na
         ws.column_dimensions['A'].width = 45
         
     # Find the next available column block (we need 2 columns per week)
-    # Row 1 has the "Week ***" headers. Let's find the max column in row 1.
     max_col = ws.max_column
+    start_col = None
+    
     if max_col == 1 and ws.cell(row=1, column=1).value is None:
         start_col = 2 # First time adding a week
     else:
-        start_col = max_col + 1
+        # Check if week already exists
+        for col in range(2, max_col + 1):
+            cell_val = ws.cell(row=1, column=col).value
+            if cell_val and str(cell_val).strip() == str(week_name).strip():
+                start_col = col
+                break
+                
+        if not start_col:
+            start_col = max_col + 1
         
     # Styles for Master Sheet
     header_fill = PatternFill("solid", fgColor="E2EFDA") # Light green header

@@ -36,10 +36,10 @@ async def process_file(file: UploadFile = File(...)):
         # Use the first sheet name as the week identifier (e.g., the date)
         week_name = str(xl.sheet_names[0]).strip()
         
-        # Check against the Master Tracker to prevent duplicate uploads
+        # We no longer block duplicate uploads. Let job_cost_report.py overwrite it.
         master_filepath = os.path.join(SAVE_DIR, "Master_Running_Tracker.xlsx")
-        if check_if_week_exists(week_name, master_filepath):
-            raise HTTPException(status_code=400, detail=f"A report for week '{week_name}' has already been processed and saved.")
+        # if check_if_week_exists(week_name, master_filepath):
+        #     raise HTTPException(status_code=400, detail=f"A report for week '{week_name}' has already been processed and saved.")
             
         # Save the original raw file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
