@@ -23,15 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const size = (file.size / 1024).toFixed(1) + ' KB';
 
                     li.innerHTML = `
-                        <div class="history-info">
-                            <i data-feather="file-text" class="file-icon"></i>
-                            <div class="history-details">
-                                <h4>${file.name}</h4>
-                                <span>${date} &bull; ${size}</span>
+                        <a href="/api/history/${encodeURIComponent(file.name)}" class="history-item-link" download title="Click to download ${file.name}">
+                            <div class="history-info">
+                                <i data-feather="file" class="file-icon"></i>
+                                <div class="history-details">
+                                    <h4>${file.name}</h4>
+                                    <span>${date} &bull; ${size}</span>
+                                </div>
                             </div>
-                        </div>
-                        <a href="/api/history/${encodeURIComponent(file.name)}" class="btn btn-primary btn-sm" download>
-                            <i data-feather="download"></i> Download
                         </a>
                     `;
                     
