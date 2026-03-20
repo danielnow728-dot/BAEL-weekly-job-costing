@@ -46,16 +46,24 @@
                         <p>Loading files...</p>
                     </div>
                     
-                    <div id="library-content" class="hidden">
-                        <h4 style="margin-bottom: 1rem; color: var(--clr-text-main);">Processed Reports</h4>
-                        <ul class="history-list" id="history-list" style="margin-bottom: 2.5rem;">
-                            <!-- List items will be injected here -->
-                        </ul>
+                    <div id="library-content" class="hidden library-grid">
+                        <div class="library-column">
+                            <div class="library-col-header">
+                                <i data-feather="check-circle"></i> Processed Reports
+                            </div>
+                            <ul class="history-list" id="history-list">
+                                <!-- List items will be injected here -->
+                            </ul>
+                        </div>
                         
-                        <h4 style="margin-bottom: 1rem; color: var(--clr-text-main);">Original Raw Data</h4>
-                        <ul class="history-list" id="raw-list">
-                            <!-- List items will be injected here -->
-                        </ul>
+                        <div class="library-column">
+                            <div class="library-col-header">
+                                <i data-feather="database"></i> Original Raw Data
+                            </div>
+                            <ul class="history-list" id="raw-list">
+                                <!-- List items will be injected here -->
+                            </ul>
+                        </div>
                     </div>
                     
                     <div class="empty-state hidden" id="history-empty">
